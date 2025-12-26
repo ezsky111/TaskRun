@@ -12,6 +12,15 @@ RUN apt-get update && apt-get install -y \
 ENV TASKS_DIR=/app/tasks
 ENV LOGS_DIR=/app/logs
 
+# Redis 连接配置环境变量
+ENV REDIS_HOST=127.0.0.1
+ENV REDIS_USERNAME=
+ENV REDIS_PASSWORD=
+ENV REDIS_PORT=6379
+ENV REDIS_DB=7
+ENV REDIS_DB_FILTER_AND_RPC_RESULT=8
+ENV REDIS_SSL=False
+
 # 复制后端依赖并安装（CI 已构建前端到 `frontend/dist`）
 COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
