@@ -1,0 +1,38 @@
+from sqlalchemy import Column, String, DateTime, Float, Integer, BigInteger, Text, Boolean, JSON
+from app.database import Base
+
+class FunboostConsumeResult(Base):
+    __tablename__ = 'funboost_consume_results'
+
+    _id = Column(String(255), primary_key=True, nullable=False)
+    function = Column(String(255))
+    host_name = Column(String(255))
+    host_process = Column(String(255))
+    insert_minutes = Column(String(255))
+    insert_time = Column(DateTime)
+    insert_time_str = Column(String(255))
+    publish_time = Column(Float)
+    publish_time_format = Column(String(255))
+    msg_dict = Column(JSON)
+    params = Column(JSON)
+    params_str = Column(String(255))
+    process_id = Column(BigInteger)
+    queue_name = Column(String(255))
+    result = Column(Text)
+    run_times = Column(Integer)
+    script_name = Column(String(255))
+    script_name_long = Column(String(255))
+    success = Column(Boolean)
+    task_id = Column(String(255))
+    thread_id = Column(BigInteger)
+    time_cost = Column(Float)
+    time_end = Column(Float)
+    time_start = Column(Float)
+    total_thread = Column(Integer)
+    utime = Column(String(255))
+    exception = Column(Text)
+    rpc_result_expire_seconds = Column(BigInteger)
+    exception_type = Column(String(255))
+    exception_msg = Column(Text)
+    rpc_chain_error_msg_dict = Column(Text)
+    run_status = Column(String(255))

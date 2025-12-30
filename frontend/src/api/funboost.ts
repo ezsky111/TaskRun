@@ -31,3 +31,15 @@ export function fetchGetAllProjectNames() {
     url: '/api/funboost/get_all_project_names'
   })
 }
+
+/**
+ * 获取 funboost 消费结果列表
+ * @param params 查询参数
+ * @returns 分页结果
+ */
+export function fetchGetFunboostResults(params: Api.Funboost.FunboostResultsParams) {
+  return request.get<Api.Funboost.FunboostResultsData>({
+    url: '/api/funboost/results',
+    params
+  })
+}

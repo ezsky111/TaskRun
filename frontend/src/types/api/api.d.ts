@@ -150,5 +150,59 @@ declare namespace Api {
       project_names: string[]
       count: number
     }
+
+    /** Funboost 消费结果项 */
+    interface FunboostResultItem {
+      _id: string
+      function?: string
+      host_name?: string
+      host_process?: string
+      insert_minutes?: string
+      insert_time?: string
+      insert_time_str?: string
+      publish_time?: number
+      publish_time_format?: string
+      msg_dict?: any
+      params?: any
+      params_str?: string
+      process_id?: number
+      queue_name?: string
+      result?: string
+      run_times?: number
+      script_name?: string
+      script_name_long?: string
+      success?: boolean
+      task_id?: string
+      thread_id?: number
+      time_cost?: number
+      time_end?: number
+      time_start?: number
+      total_thread?: number
+      utime?: string
+      exception?: string
+      rpc_result_expire_seconds?: number
+      exception_type?: string
+      exception_msg?: string
+      rpc_chain_error_msg_dict?: string
+      run_status?: string
+    }
+
+    /** Funboost 结果分页响应 */
+    interface FunboostResultsData {
+      data: FunboostResultItem[]
+      total: number
+      page: number
+      size: number
+      total_pages: number
+    }
+
+    /** Funboost 结果查询参数 */
+    interface FunboostResultsParams {
+      page?: number
+      size?: number
+      task_id?: string
+      queue_name?: string
+      success?: boolean
+    }
   }
 }
