@@ -8,3 +8,5 @@ uvicorn==0.40.0
 funboost==52.6
 sqlalchemy==2.0.23
 pymysql==1.1.0
+mysqlclient==2.1.1
+db_libs==1.2
