@@ -5,28 +5,60 @@
 
     <ElCard class="art-table-card" shadow="never">
       <!-- 表格头部 -->
-      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
+      <ArtTableHeader v-if="!isMobile" v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
       </ArtTableHeader>
 
-      <!-- 表格 -->
-      <ArtTable :loading="loading" :data="data" :columns="columns" :pagination="pagination"
+      <!-- PC端表格 -->
+      <ArtTable v-if="!isMobile" :loading="loading" :data="data" :columns="columns" :pagination="pagination"
         @pagination:size-change="handleSizeChange" @pagination:current-change="handleCurrentChange">
       </ArtTable>
+
+      <!-- 移动端卡片列表 -->
+      <div v-else class="grid grid-cols-1">
+        <ElCard v-for="(item, index) in data" :key="item.id || index"  class="art-table-card">
+          <div class="flex justify-between items-start mb-2">
+            <div class="font-semibold text-lg">{{ item.function }}</div>
+            <ElTag :type="getSuccessStatusConfig(item.success).type" size="small">
+              {{ getSuccessStatusConfig(item.success).text }}
+            </ElTag>
+          </div>
+          <div class="text-sm text-gray-600 mb-1"><strong>队列名称:</strong> {{ item.queue_name }}</div>
+          <div class="text-sm text-gray-600 mb-1"><strong>主机名:</strong> {{ item.host_name }}</div>
+          <div class="text-sm text-gray-600 mb-1"><strong>耗时:</strong> {{ item.time_cost?.toFixed(2) }}s</div>
+          <div class="text-sm text-gray-600 mb-1"><strong>运行次数:</strong> {{ item.run_times }}</div>
+          <div class="text-sm text-gray-600 mb-1"><strong>插入时间:</strong> {{ formatDateTime(item.insert_time) }}</div>
+          <div class="text-sm text-gray-600 mb-2"><strong>参数:</strong> <span class="truncate block">{{ item.params_str }}</span></div>
+          <ElButton size="small" @click="showDetail(item)">详情</ElButton>
+        </ElCard>
+      </div>
+
+      <!-- 分页 -->
+      <div v-if="isMobile" class="flex justify-center mt-4">
+        <ElPagination
+          :current-page="pagination.current"
+          :page-size="pagination.size"
+          :total="pagination.total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, prev, pager, next"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </ElCard>
 
     <!-- 详情弹窗 -->
-    <ElDialog v-model="detailDialogVisible" title="任务详情" width="50%" class="rounded-lg shadow-lg">
+    <ElDialog v-model="detailDialogVisible" title="任务详情" :width="isMobile ? '90%' : '50%'" class="rounded-lg shadow-lg">
       <div v-if="detailData" class="p-4">
-        <div class="flex justify-between gap-4">
-          <div class="w-1/2 bg-gray-100 p-4 rounded-lg">
+        <div class="flex flex-col lg:flex-row justify-between gap-4">
+          <div class="w-full lg:w-1/2 bg-gray-100 p-4 rounded-lg">
             <h3 class="text-lg font-semibold mb-2">参数</h3>
             <pre class="text-sm overflow-auto" v-html="highlightJson(formatJson(detailData.params))"></pre>
           </div>
-          <div v-if="detailData.success" class="w-1/2 bg-gray-100 p-4 rounded-lg">
+          <div v-if="detailData.success" class="w-full lg:w-1/2 bg-gray-100 p-4 rounded-lg">
             <h3 class="text-lg font-semibold mb-2">结果</h3>
             <pre class="text-sm overflow-auto" v-html="highlightJson(formatJson(detailData.result))"></pre>
           </div>
-          <div v-else class="w-1/2 bg-gray-100 p-4 rounded-lg">
+          <div v-else class="w-full lg:w-1/2 bg-gray-100 p-4 rounded-lg">
             <h3 class="text-lg font-semibold mb-2">异常信息</h3>
             <pre class="text-sm">异常类型: {{ detailData.exception_type }}</pre>
             <pre class="text-sm">异常信息: {{ detailData.exception_msg }}</pre>
@@ -42,8 +74,8 @@
 import { useTable } from '@/hooks/core/useTable'
 import { fetchGetFunboostResults } from '@/api/funboost'
 import QueryTaskSearch from './modules/querytask-search.vue'
-import { ElTag, ElDialog, ElButton } from 'element-plus'
-import { ref, h, watch } from 'vue'
+import { ElTag, ElDialog, ElButton, ElPagination } from 'element-plus'
+import { ref, h, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
@@ -51,6 +83,17 @@ import 'highlight.js/styles/github.css'
 const route = useRoute()
 
 defineOptions({ name: 'QueryTask' })
+
+// 屏幕宽度检测
+const screenWidth = ref(0)
+const isMobile = computed(() => screenWidth.value < 768)
+
+onMounted(() => {
+  screenWidth.value = window.innerWidth
+  const updateWidth = () => screenWidth.value = window.innerWidth
+  window.addEventListener('resize', updateWidth)
+  onUnmounted(() => window.removeEventListener('resize', updateWidth))
+})
 
 // 监听路由查询参数变化，自动执行查询
 watch(() => route.query, (newQuery) => {
@@ -65,7 +108,7 @@ type FunboostResultItem = Api.Funboost.FunboostResultItem
 // 搜索表单
 const searchForm = ref({
   task_id: undefined,
-  queue_name: undefined,
+  queue_name: '',
   success: undefined
 })
 

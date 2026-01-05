@@ -16,7 +16,7 @@ class MyBoosterParams(BoosterParams):
     should_check_publish_func_params:bool = False # 发布消息时，是否检查消息内容是否正确，不正确的消息格式立刻从接口返回报错消息内容不正确。
 
 
-@boost(MyBoosterParams(queue_name='queue_test_g01t',qps=1,))  
+@boost(MyBoosterParams(queue_name='测试中文通道',qps=1,))  
 def f(x):  
     time.sleep(5)  
     print(f'hi: {x}')  
@@ -35,6 +35,8 @@ def f2(x,y):
 if __name__ == '__main__':      
     f.multi_process_consume(4)  
     f2.multi_process_consume(5)
-    f.push(10)
-    f2.push(20,30)
+    for _ in range(10):
+        time.sleep(5)
+        f.push(10)
+        f2.push(20,30)
     ctrl_c_recv()  
