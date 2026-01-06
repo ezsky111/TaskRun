@@ -2,10 +2,11 @@ from fastapi import HTTPException, Header
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
+import os
 
-SECRET_KEY = "your-secret-key-here"  # 应该从环境变量获取
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")  # 从环境变量获取，默认值
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 48*60  # 48小时
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()

@@ -46,3 +46,9 @@ CREATE TABLE `funboost_consume_results` (
   KEY `idx_params_str` (`params_str`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ```
+
+```
+pip install pipreqs
+# 生成仅包含项目实际依赖的requirements.txt（UTF-8编码）
+pipreqs ./ --encoding=utf8 --force
+```

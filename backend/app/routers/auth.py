@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from app.models.user import LoginRequest, UserInfo
 from app.dependencies.auth import create_access_token, verify_token
 from app.dependencies import success_response, error_response
+import os
 
 router = APIRouter()
 
@@ -13,7 +14,9 @@ async def login(request: LoginRequest):
     :param request: 说明
     :type request: LoginRequest
     """
-    if request.username == "admin" and request.password == "admin":
+    admin_username = os.getenv("ADMIN_USERNAME", "admin")
+    admin_password = os.getenv("ADMIN_PASSWORD", "admin")
+    if request.username == admin_username and request.password == admin_password:
         access_token = create_access_token(data={"sub": request.username})
         return success_response(
             msg="登录成功",
