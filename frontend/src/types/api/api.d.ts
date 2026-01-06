@@ -50,8 +50,8 @@ declare namespace Api {
 
     /** 分页响应基础结构 */
     interface PaginatedResponse<T = any> {
-      records: T[]
-      current: number
+      data: T[]
+      page: number
       size: number
       total: number
     }
@@ -188,13 +188,7 @@ declare namespace Api {
     }
 
     /** Funboost 结果分页响应 */
-    interface FunboostResultsData {
-      data: FunboostResultItem[]
-      total: number
-      page: number
-      size: number
-      total_pages: number
-    }
+    type FunboostResultsData =Api.Common.PaginatedResponse<FunboostResultItem>
 
     /** Funboost 结果查询参数 */
     interface FunboostResultsParams {

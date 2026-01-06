@@ -25,7 +25,7 @@
 
       <!-- 移动端卡片列表 -->
       <div v-else class="grid grid-cols-1">
-        <ElCard v-for="(item, index) in data" :key="item.id || index"  class="art-table-card">
+        <ElCard v-for="(item, index) in data" :key="item._id || index"  class="art-table-card">
           <div class="flex justify-between items-start mb-2">
             <div class="font-semibold text-lg">{{ item.function }}</div>
             <ElTag :type="getSuccessStatusConfig(item.success).type" size="small">
@@ -126,7 +126,7 @@ type FunboostResultItem = Api.Funboost.FunboostResultItem
 
 // 搜索表单
 const searchForm = ref({
-  task_id: undefined,
+  task_id: '',
   queue_name: '',
   success: undefined
 })
@@ -199,9 +199,8 @@ const {
   },
   // 数据处理
   transform: {
-    dataTransformer: (response) => {
-      // 后端返回的是 {data: [...], total: ..., page: ..., size: ..., total_pages: ...}
-      return response || []
+    dataTransformer: (data: Api.Funboost.FunboostResultItem[]) => {
+      return data || []
     }
   }
 })

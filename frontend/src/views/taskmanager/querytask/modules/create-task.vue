@@ -31,7 +31,7 @@
       <div v-if="selectedQueue" class="mb-6">
         <h3 class="text-lg font-medium mb-4">任务参数 (JSON格式)</h3>
         <ElForm :model="jsonForm" :rules="jsonRules" ref="jsonFormRef">
-          <ElFormItem prop="jsonData" :required="inputParams.some(p => p.required)">
+          <ElFormItem prop="jsonData" :required="inputParams.some((p: { required: any; }) => p.required)">
             <ElInput
               v-model="jsonForm.jsonData"
               type="textarea"
@@ -309,7 +309,7 @@ const handleQueueChange = () => {
     const params = inputParams.value
     const defaultObj: Record<string, any> = {}
 
-    params.forEach(param => {
+    params.forEach((param: { default: undefined; name: string | number; type: any; }) => {
       if (param.default !== undefined) {
         defaultObj[param.name] = param.default
       } else {
@@ -357,11 +357,11 @@ const handlePublish = async () => {
   }
 
   // 验证必填参数
-  const requiredParams = inputParams.value.filter(p => p.required)
-  const missingParams = requiredParams.filter(p => !(p.name in msgBody) || msgBody[p.name] === null || msgBody[p.name] === undefined || msgBody[p.name] === '')
+  const requiredParams = inputParams.value.filter((p: { required: any; }) => p.required)
+  const missingParams = requiredParams.filter((p: { name: string; }) => !(p.name in msgBody) || msgBody[p.name] === null || msgBody[p.name] === undefined || msgBody[p.name] === '')
 
   if (missingParams.length > 0) {
-    ElMessage.error(`缺少必填参数: ${missingParams.map(p => p.name).join(', ')}`)
+    ElMessage.error(`缺少必填参数: ${missingParams.map((p: { name: any; }) => p.name).join(', ')}`)
     return
   }
 
