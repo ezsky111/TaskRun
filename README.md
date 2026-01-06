@@ -176,3 +176,11 @@ volumes:
 - **healthcheck**: 继承 Dockerfile 的健康检查。
 
 如果需要自定义（如更改端口或添加更多配置），修改 `docker-compose.yml` 即可。生产环境建议使用 `.env` 文件管理敏感变量（Docker Compose 支持 `env_file`）。
+
+## 致谢
+
+本项目使用了以下开源框架和库：
+
+- [FastAPI](https://fastapi.tiangolo.com/) - 现代化的 Python Web 框架，用于构建 API
+- [ArtDesignPro](https://github.com/Daymychen/art-design-pro) - 前端设计框架
+- [Funboost](https://github.com/ydf0509/funboost) - Python 任务队列框架，用于分布式任务管理
