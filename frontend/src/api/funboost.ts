@@ -75,3 +75,39 @@ export function fetchPublishMsg(params: Api.Funboost.PublishMsgParams) {
     params
   })
 }
+
+/**
+ * 暂停队列消费
+ * @param params 暂停参数
+ * @returns 暂停结果
+ */
+export function fetchPauseConsume(params: Api.Funboost.QueueControlParams) {
+  return request.post<Api.Funboost.QueueControlData>({
+    url: '/api/funboost/pause_consume',
+    params
+  })
+}
+
+/**
+ * 恢复队列消费
+ * @param params 恢复参数
+ * @returns 恢复结果
+ */
+export function fetchResumeConsume(params: Api.Funboost.QueueControlParams) {
+  return request.post<Api.Funboost.QueueControlData>({
+    url: '/api/funboost/resume_consume',
+    params
+  })
+}
+
+/**
+ * 清空队列消息
+ * @param params 清空参数
+ * @returns 清空结果
+ */
+export function fetchClearQueue(params: Api.Funboost.QueueControlParams) {
+  return request.post<Api.Funboost.ClearQueueData>({
+    url: '/api/funboost/clear_queue',
+    params
+  })
+}

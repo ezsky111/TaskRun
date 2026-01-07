@@ -297,5 +297,22 @@ declare namespace Api {
       task_id: string | null
       status_and_result: any | null
     }
+
+    /** 队列控制参数 */
+    interface QueueControlParams {
+      queue_name: string
+    }
+
+    /** 队列控制操作响应数据 */
+    interface QueueControlData {
+      queue_name: string
+      success: boolean
+    }
+
+    /** 清空队列响应数据 */
+    interface ClearQueueData {
+      queue_name: string
+      success: boolean
+    }
   }
 }

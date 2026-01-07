@@ -117,14 +117,14 @@
             <ElButton 
               v-if="row.pause_flag === 0||row.pause_flag === -1" 
               type="warning" 
-              @click="controlQueue(row.queue_name, 'pause_consume')"
+              @click="controlQueue(row.queue_params.queue_name, 'pause_consume')"
             >暂停</ElButton>
             <ElButton 
               v-else 
               type="success" 
-              @click="controlQueue(row.queue_name, 'resume_consume')"
+              @click="controlQueue(row.queue_params.queue_name, 'resume_consume')"
             >恢复</ElButton>
-            <ElPopconfirm title="确定清空队列积压消息吗？" @confirm="controlQueue(row.queue_name, 'clear_queue')">
+            <ElPopconfirm title="确定清空队列积压消息吗？" @confirm="controlQueue(row.queue_params.queue_name, 'clear_queue')">
               <template #reference>
                 <ElButton type="danger">清空</ElButton>
               </template>
@@ -156,7 +156,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from 'vue'
 import { Search, Refresh, Setting, VideoPause, VideoPlay, Delete } from '@element-plus/icons-vue'
-import { fetchGetAllQueueRunInfo} from '@/api/funboost'
+import { fetchGetAllQueueRunInfo, fetchPauseConsume, fetchResumeConsume, fetchClearQueue } from '@/api/funboost'
 import { ElMessage, ElCollapse, ElCollapseItem, ElCard, ElButton, ElTag, ElPopconfirm, ElInput, ElSelect, ElOption, ElDivider } from 'element-plus'
 
 // --- 数据定义 ---
@@ -231,9 +231,10 @@ const formatJson = (obj: any) => JSON.stringify(obj, null, 2)
 const controlQueue = async (queueName: string, action: string) => {
   try {
     let res: any
-    // if (action === 'pause_consume') res = await fetchPauseConsume({ queue_name: queueName })
-    // else if (action === 'resume_consume') res = await fetchResumeConsume({ queue_name: queueName })
-    // else if (action === 'clear_queue') res = await fetchClearQueue({ queue_name: queueName })
+    console.log(`队列名：${queueName}，动作：${action}`)
+    if (action === 'pause_consume') res = await fetchPauseConsume({ queue_name: queueName })
+    else if (action === 'resume_consume') res = await fetchResumeConsume({ queue_name: queueName })
+    else if (action === 'clear_queue') res = await fetchClearQueue({ queue_name: queueName })
   
     ElMessage.success('操作成功')
     setTimeout(refreshData, 1000) // 延迟刷新以便后台更新状态
