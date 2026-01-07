@@ -4,6 +4,8 @@
 
 这是一个基于 Funboost 开发的 Python 任务管理程序。前后端分离架构，后端使用 FastAPI，前端使用 Vue.js。项目依赖 MySQL 和 Redis 作为中间件，用于任务队列管理和数据存储。
 
+项目启动时，会启动子进程主动发现环境变量配置的 `/app/tasks` 目录下定义的 booster 并启动消费。`examleTask` 目录提供了示例任务代码，可作为开发自定义任务的参考。
+
 ## 目录结构
 
 ```
@@ -14,12 +16,18 @@ backend/
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── auth.py          # 认证相关路由（登录接口）
-│   │   └── funboost.py      # Funboost路由
+│   │   ├── funboost.py      # Funboost路由
+│   │   └── system.py        # 系统管理路由
 │   ├── models/
 │   │   ├── __init__.py
+│   │   ├── funboost_result.py # Funboost结果模型
 │   │   └── user.py          # 用户相关Pydantic模型
 │   ├── schemas/
-│   │   └── __init__.py      # 数据库schema（预留）
+│   │   ├── __init__.py
+│   │   └── funboost_result.py # Funboost结果schema
+│   ├── responses/
+│   │   ├── __init__.py
+│   │   └── base_response.py  # 基础响应类
 │   ├── crud/
 │   │   └── __init__.py      # CRUD操作（预留）
 │   ├── database/
@@ -30,8 +38,130 @@ backend/
 ├── main.py                  # 入口点，导入app.main
 ├── funboost_cli_user.py
 ├── funboost_config.py
-└── nb_log_config.py
+├── nb_log_config.py
+├── requirements.txt         # Python依赖包列表
+├── taskrunner.py            # 任务运行器
+
+examleTask/                   # 示例任务目录，对应容器内 /app/tasks 路径下的代码示例
+├── __init__.py
+├── public.py                 # 公共函数或配置
+├── task1.py                  # 示例任务1
+└── task2.py                  # 示例任务2
+
+frontend/
+├── commitlint.config.cjs
+├── eslint.config.mjs
+├── index.html
+├── LICENSE
+├── package.json
+├── pnpm-lock.yaml
+├── tsconfig.json
+├── vite.config.ts
+├── public/
+├── src/
+│   ├── api                     # API 接口相关代码
+│   │   ├── auth.ts             # 认证相关的 API 接口定义（如登录、注册、用户信息）
+│   │   ├── funboost.ts         # Funboost 相关的 API 接口定义
+│   │   └── system-manage.ts    # 系统管理相关的 API 接口定义（如菜单、用户、角色管理）
+│   ├── App.vue                 # Vue 根组件，定义应用的全局结构和入口
+│   ├── assets                  # 静态资源目录
+│   │   ├── images              # 图片资源目录
+│   │   │   ├── avatar/         # 头像图片
+│   │   │   ├── ceremony/       # 仪式/活动图片
+│   │   │   ├── common/         # 通用图片
+│   │   │   ├── draw/           # 绘制图片
+│   │   │   ├── lock/           # 锁定图片
+│   │   │   ├── login/          # 登录图片
+│   │   │   ├── settings/       # 设置图片
+│   │   │   ├── svg/            # SVG 图片
+│   │   │   └── user/           # 用户图片
+│   │   ├── styles              # 全局样式文件
+│   │   │   ├── core            # 核心样式（系统级样式）
+│   │   │   ├── custom          # 自定义样式（业务级样式）
+│   │   │   └── index.scss      # 样式入口文件
+│   │   └── svg                 # SVG 相关资源
+│   │       └── loading.ts      # 加载动画 SVG 定义
+│   ├── components              # 组件目录
+│   │   ├── business            # 业务组件（业务相关的自定义组件）
+│   │   └── core                # 核心组件（系统级通用组件库）
+│   │       ├── banners         # 横幅组件
+│   │       ├── base            # 基础组件
+│   │       ├── cards           # 卡片组件
+│   │       ├── charts          # 图表组件
+│   │       ├── forms           # 表单组件
+│   │       ├── layouts         # 布局组件
+│   │       └── ...             # 其他组件
+│   ├── config                  # 项目配置目录
+│   │   ├── assets              # 静态资源配置
+│   │   ├── modules             # 模块化配置
+│   │   │   ├── component.ts    # 组件配置
+│   │   │   ├── fastEnter.ts    # 快捷入口配置
+│   │   │   └── headerBar.ts    # 顶部栏配置
+│   │   ├── index.ts            # 配置入口文件
+│   │   └── setting.ts          # 系统设置配置
+│   ├── directives              # Vue 自定义指令
+│   │   ├── business            # 业务指令
+│   │   ├── core                # 核心指令
+│   │   └── index.ts            # 指令入口文件
+│   ├── enums                   # 枚举定义
+│   │   ├── appEnum.ts          # 应用级枚举（如主题类型、语言类型）
+│   │   └── formEnum.ts         # 表单相关枚举（如表单状态、验证规则）
+│   ├── env.d.ts                # TypeScript 环境声明文件
+│   ├── hooks                   # Vue 3 Composable 函数（可复用逻辑）
+│   │   ├── core                # 核心 Hooks
+│   │   └── index.ts            # Hooks 入口文件
+│   ├── locales                 # 国际化（i18n）资源
+│   │   ├── index.ts            # 国际化入口文件
+│   │   └── langs               # 多语言文件
+│   ├── main.ts                 # 项目主入口文件
+│   ├── mock                    # Mock 数据目录
+│   │   ├── temp                # 临时 Mock 数据
+│   │   └── upgrade             # 更新日志数据
+│   ├── plugins                 # 插件配置
+│   │   ├── echarts.ts          # ECharts 图表库配置
+│   │   └── index.ts            # 插件入口文件
+│   ├── router                  # Vue Router 路由相关代码
+│   │   ├── core                # 路由核心功能
+│   │   ├── guards              # 路由守卫
+│   │   ├── modules             # 路由模块定义
+│   │   ├── routes              # 路由配置
+│   │   ├── index.ts            # 路由主入口
+│   │   └── routesAlias.ts      # 路由别名定义
+│   ├── store                   # Pinia 状态管理
+│   │   ├── modules             # 状态管理模块
+│   │   └── index.ts            # Pinia 入口文件
+│   ├── types                   # TypeScript 类型定义
+│   │   ├── api                 # API 相关类型
+│   │   ├── common              # 通用类型定义
+│   │   ├── component           # 组件相关类型
+│   │   ├── config              # 配置相关类型
+│   │   ├── import              # 自动导入类型声明
+│   │   ├── router              # 路由相关类型
+│   │   ├── store               # 状态管理相关类型
+│   │   └── index.ts            # 类型定义总入口
+│   ├── utils                   # 工具函数目录
+│   │   ├── constants           # 常量定义
+│   │   ├── form                # 表单相关工具
+│   │   ├── http                # HTTP 请求工具
+│   │   ├── navigation          # 导航相关工具
+│   │   ├── storage             # 存储相关工具
+│   │   ├── sys                 # 系统相关工具
+│   │   ├── table               # 表格相关工具
+│   │   ├── ui                  # UI 相关工具
+│   │   ├── index.ts            # 工具函数总入口
+│   │   └── router.ts           # 路由工具函数
+│   └── views                   # 页面组件目录
+│       ├── auth/               # 认证页面
+│       ├── dashboard/          # 仪表盘页面
+│       ├── exception/          # 异常页面
+│       ├── index/              # 首页
+│       ├── outside/            # 外部页面
+│       ├── result/             # 结果页面
+│       ├── system/             # 系统管理页面
+│       └── taskmanager/        # 任务管理页面
 ```
+</xai:function_call name="replace_string_in_file">
+<parameter name="filePath">/workspaces/TaskRun/README.md
 
 ## Docker 部署
 
