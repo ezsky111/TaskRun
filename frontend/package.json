@@ -58,6 +58,7 @@
     "@vueuse/core": "^13.9.0",
     "@wangeditor/editor": "^5.1.23",
     "@wangeditor/editor-for-vue": "next",
+    "ansi_up": "^6.0.6",
     "axios": "^1.12.2",
     "crypto-js": "^4.2.0",
     "echarts": "^6.0.0",
