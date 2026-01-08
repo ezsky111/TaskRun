@@ -48,7 +48,16 @@
       >
         停止进程
       </ElButton>
+      <ElButton
+        type="info"
+        @click="logDialogVisible = true"
+      >
+        查看日志
+      </ElButton>
     </ElSpace>
+
+    <!-- 日志弹窗 -->
+    <LogDialog v-model="logDialogVisible" />
   </ElCard>
 </template>
 
@@ -57,6 +66,7 @@ import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { fetchStartProcess, fetchRestartProcess, fetchStopProcess, fetchGetProcessStatus } from '@/api/system-manage'
 import { ElMessage, ElCard, ElButton, ElSpace } from 'element-plus'
+import LogDialog from '@/components/LogDialog.vue'
 
 // 进程管理数据
 const processStatus = ref<Api.SystemManage.ProcessStatusData>({
@@ -68,6 +78,9 @@ const processLoading = ref({
   stop: false,
   status: false
 })
+
+// 日志弹窗
+const logDialogVisible = ref(false)
 
 // 刷新进程状态
 const refreshProcessStatus = async () => {
@@ -87,7 +100,8 @@ const handleStartProcess = async () => {
   processLoading.value.start = true
   try {
     await fetchStartProcess()
-    ElMessage.success('进程启动成功')
+    ElMessage.success('进程启动中')
+    logDialogVisible.value = true
     await refreshProcessStatus()
   } catch (err) {
     ElMessage.error('启动失败')
@@ -101,7 +115,8 @@ const handleRestartProcess = async () => {
   processLoading.value.restart = true
   try {
     await fetchRestartProcess()
-    ElMessage.success('进程重启成功')
+    ElMessage.success('进程重启中')
+    logDialogVisible.value = true
     await refreshProcessStatus()
   } catch (err) {
     ElMessage.error('重启失败')

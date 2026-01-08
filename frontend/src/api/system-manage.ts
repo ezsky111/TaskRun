@@ -63,3 +63,13 @@ export function fetchGetProcessStatus() {
     url: '/api/process/status'
   })
 }
+
+/**
+ * 获取日志
+ * @returns 日志列表
+ */
+export function fetchLogs() {
+  return request.get<Api.Common.CommonResponse & { data: { logs: string[] } }>({
+    url: '/api/logs'
+  })
+}

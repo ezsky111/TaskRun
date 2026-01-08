@@ -66,6 +66,13 @@
             </el-button>
             <el-button
               size="small"
+              type="info"
+              @click="logDialogVisible = true"
+            >
+              日志
+            </el-button>
+            <el-button
+              size="small"
               :icon="RefreshIcon"
               :loading="processLoading.status"
               @click="refreshProcessStatus"
@@ -183,6 +190,9 @@
         <el-button type="primary" @click="createFileOrDir">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 日志弹窗 -->
+    <LogDialog v-model="logDialogVisible" />
   </ElCard>
 </template>
 
@@ -199,6 +209,7 @@ import {
   fetchDeleteFile
 } from '@/api/files'
 import { fetchStartProcess, fetchRestartProcess, fetchStopProcess, fetchGetProcessStatus } from '@/api/system-manage'
+import LogDialog from '@/components/LogDialog.vue'
 
 const RefreshIcon = Refresh
 
@@ -241,6 +252,9 @@ const createForm = reactive({
   name: '',
   type: 'file'
 })
+
+// 日志弹窗
+const logDialogVisible = ref(false)
 
 // 计算过滤后的文件列表
 const filterFilesList = computed(() => {
@@ -455,9 +469,36 @@ const createFileOrDir = async () => {
   }
 }
 
-// 搜索处理
-const handleSearch = () => {
-  // 搜索时保持树的展开状态
+// 刷新日志
+const refreshLogs = async () => {
+  try {
+    const res = await fetchLogs()
+    // 只显示最新的100行以优化性能
+    logs.value = res.logs.slice(-100)
+    // 自动滚动到底部
+    await nextTick()
+    if (logContainerRef.value) {
+      logContainerRef.value.scrollTop = logContainerRef.value.scrollHeight
+    }
+  } catch (err) {
+    console.error('获取日志失败', err)
+  }
+}
+
+// 打开日志弹窗
+const openLogDialog = () => {
+  logDialogVisible.value = true
+  refreshLogs()
+  logInterval = setInterval(refreshLogs, 5000)
+}
+
+// 关闭日志弹窗
+const closeLogDialog = () => {
+  logDialogVisible.value = false
+  if (logInterval) {
+    clearInterval(logInterval)
+    logInterval = null
+  }
 }
 
 // 刷新进程状态
@@ -478,7 +519,8 @@ const handleStartProcess = async () => {
   processLoading.value.start = true
   try {
     await fetchStartProcess()
-    ElMessage.success('进程启动成功')
+    ElMessage.success('进程启动中')
+    logDialogVisible.value = true
     await refreshProcessStatus()
   } catch (err) {
     ElMessage.error('启动失败')
@@ -515,7 +557,8 @@ const handleRestartProcess = async () => {
   processLoading.value.restart = true
   try {
     await fetchRestartProcess()
-    ElMessage.success('进程重启成功')
+    ElMessage.success('进程重启中')
+    logDialogVisible.value = true
     await refreshProcessStatus()
   } catch (err) {
     ElMessage.error('重启失败')
