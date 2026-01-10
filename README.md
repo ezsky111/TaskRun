@@ -164,8 +164,6 @@ frontend/
 │       ├── system/             # 系统管理页面
 │       └── taskmanager/        # 任务管理页面
 ```
-</xai:function_call name="replace_string_in_file">
-<parameter name="filePath">/workspaces/TaskRun/README.md
 
 ## Docker 部署
 
