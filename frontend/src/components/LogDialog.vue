@@ -1,12 +1,18 @@
 <template>
   <el-dialog v-model="visible" :title="logType === 'process' ? '进程日志' : '安装日志'" width="80%" @close="handleClose">
-    <div class="log-header" v-if="logType === 'process'">
-      <div class="status-info">
+    <div class="log-header">
+      <div class="status-info" v-if="logType === 'process'">
         <span>进程状态: </span>
         <el-tag :type="processStatus.status === 'running' ? 'success' : 'danger'">
           {{ processStatus.status === 'running' ? '运行中' : '已停止' }}
         </el-tag>
         <span v-if="processStatus.pid">PID: {{ processStatus.pid }}</span>
+      </div>
+      <div class="connection-status">
+        <span>连接状态: </span>
+        <el-tag :type="connectionStatusType">
+          {{ connectionStatusText }}
+        </el-tag>
       </div>
     </div>
     <div class="log-container" ref="logContainerRef">
@@ -15,16 +21,16 @@
     </div>
     <template #footer>
       <el-button @click="handleClose">关闭</el-button>
-      <el-button type="primary" @click="refreshLogs">刷新</el-button>
+      <el-button type="primary" @click="clearLogs">清空日志</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
-import { fetchLogs, fetchGetProcessStatus, fetchInstallLogs } from '@/api/system-manage'
-import type { Api } from '@/types/api'
-import {  AnsiUp } from 'ansi_up' // 导入 ansi_up
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
+import { fetchGetProcessStatus } from '@/api/system-manage'
+import { AnsiUp } from 'ansi_up'
+import { useUserStore } from '@/store/modules/user'
 
 interface Props {
   modelValue: boolean
@@ -44,25 +50,49 @@ const visible = ref(false)
 const logs = ref<string[]>([])
 const logContainerRef = ref<HTMLElement>()
 const processStatus = ref<Api.SystemManage.ProcessStatusData>({ status: 'stopped' })
-let logInterval: number | null = null
+const eventSource = ref<EventSource | null>(null)
+const connectionStatus = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
+const autoScroll = ref(true)
 
 // 创建 ansi_up 实例
 const ansiUp = new AnsiUp()
 
+// 连接状态显示
+const connectionStatusType = computed(() => {
+  switch (connectionStatus.value) {
+    case 'connected':
+      return 'success'
+    case 'connecting':
+      return 'warning'
+    case 'disconnected':
+      return 'danger'
+  }
+})
+
+const connectionStatusText = computed(() => {
+  switch (connectionStatus.value) {
+    case 'connected':
+      return '已连接'
+    case 'connecting':
+      return '连接中...'
+    case 'disconnected':
+      return '已断开'
+  }
+})
+
 // 计算属性：将日志数组转换为带颜色的HTML
 const formattedLogs = computed(() => {
-  // 只处理最新的100行以优化性能
-  const recentLogs = logs.value.slice(-100)
+  // 限制显示最新的1000行以优化性能
+  const recentLogs = logs.value.slice(-1000)
   
   // 将每行日志通过 ansi_up 转换为HTML
   const htmlLogs = recentLogs.map(log => {
-    // 使用 ansi_to_html 方法解析ANSI颜色代码
     return ansiUp.ansi_to_html(log)
   })
   
   // 每行用div包裹，并添加行号
   return htmlLogs.map((html, index) => {
-    const lineNumber = index + 1 + Math.max(0, logs.value.length - 100)
+    const lineNumber = index + 1 + Math.max(0, logs.value.length - 1000)
     return `<div class="log-line"><span class="line-number">${lineNumber}:</span>${html}</div>`
   }).join('')
 })
@@ -71,9 +101,13 @@ const formattedLogs = computed(() => {
 watch(() => props.modelValue, (newVal) => {
   visible.value = newVal
   if (newVal) {
-    startRefreshing()
+    connectSSE()
+    if (props.logType === 'process') {
+      updateProcessStatus()
+    }
   } else {
-    stopRefreshing()
+    disconnectSSE()
+    logs.value = []
   }
 })
 
@@ -82,64 +116,122 @@ watch(visible, (newVal) => {
   emit('update:modelValue', newVal)
 })
 
-// 刷新日志和进程状态
-const refreshLogs = async () => {
+// 监听日志变化，自动滚动
+watch(() => logs.value.length, () => {
+  if (autoScroll.value) {
+    scrollToBottom()
+  }
+})
+
+// 连接SSE
+const connectSSE = () => {
+  // 先断开旧连接
+  disconnectSSE()
+  
+  const url = props.logType === 'process' 
+    ? '/api/logs/stream' 
+    : '/api/install/logs/stream'
+  
+  connectionStatus.value = 'connecting'
+  
   try {
-    if (props.logType === 'process') {
-      const [logRes, statusRes] = await Promise.all([
-        fetchLogs(),
-        fetchGetProcessStatus()
-      ])
-      // 保持原始日志数据
-      logs.value = logRes.logs.slice(-100)
-      processStatus.value = statusRes
-    } else {
-      const logRes = await fetchInstallLogs()
-      logs.value = logRes.logs.slice(-100)
+    // 获取token
+    const { accessToken } = useUserStore()
+    const eventSourceUrl = accessToken ? `${url}?token=${accessToken}` : url
+    
+    eventSource.value = new EventSource(eventSourceUrl)
+    
+    eventSource.value.onopen = () => {
+      connectionStatus.value = 'connected'
+      console.log('SSE连接已建立')
     }
-    // 自动滚动到底部
-    await nextTick()
+    
+    eventSource.value.onmessage = (event) => {
+      const logLine = event.data
+      logs.value.push(logLine)
+      
+      // 限制内存中的日志行数
+      if (logs.value.length > 2000) {
+        logs.value = logs.value.slice(-1000)
+      }
+    }
+    
+    eventSource.value.onerror = (error) => {
+      console.error('SSE连接错误:', error)
+      connectionStatus.value = 'disconnected'
+      disconnectSSE()
+      
+      // 如果对话框仍然打开，3秒后尝试重连
+      if (visible.value) {
+        setTimeout(() => {
+          if (visible.value) {
+            console.log('尝试重新连接SSE...')
+            connectSSE()
+          }
+        }, 3000)
+      }
+    }
+  } catch (error) {
+    console.error('创建SSE连接失败:', error)
+    connectionStatus.value = 'disconnected'
+  }
+}
+
+// 断开SSE连接
+const disconnectSSE = () => {
+  if (eventSource.value) {
+    eventSource.value.close()
+    eventSource.value = null
+  }
+  connectionStatus.value = 'disconnected'
+}
+
+// 更新进程状态
+const updateProcessStatus = async () => {
+  try {
+    const statusRes = await fetchGetProcessStatus()
+    processStatus.value = statusRes
   } catch (err) {
-    console.error('获取日志或状态失败', err)
+    console.error('获取进程状态失败', err)
   }
 }
 
 // 滚动到底部函数
 const scrollToBottom = () => {
+  nextTick(() => {
+    if (logContainerRef.value) {
+      requestAnimationFrame(() => {
+        if (logContainerRef.value) {
+          logContainerRef.value.scrollTop = logContainerRef.value.scrollHeight
+        }
+      })
+    }
+  })
+}
+
+// 检测用户是否手动滚动
+const handleScroll = () => {
   if (logContainerRef.value) {
-    // 使用 requestAnimationFrame 确保在DOM更新后执行
-    requestAnimationFrame(() => {
-      if (logContainerRef.value) {
-        logContainerRef.value.scrollTop = logContainerRef.value.scrollHeight
-      }
-    })
+    const { scrollTop, scrollHeight, clientHeight } = logContainerRef.value
+    // 如果用户滚动到接近底部（50px内），启用自动滚动
+    autoScroll.value = scrollHeight - scrollTop - clientHeight < 50
   }
 }
 
-// 开始刷新
-const startRefreshing = () => {
-  refreshLogs()
-  // 保持原有的5秒刷新间隔
-  logInterval = window.setInterval(refreshLogs, 5000)
-}
-
-// 停止刷新
-const stopRefreshing = () => {
-  if (logInterval) {
-    clearInterval(logInterval)
-    logInterval = null
-  }
+// 清空日志
+const clearLogs = () => {
+  logs.value = []
 }
 
 // 关闭处理
 const handleClose = () => {
-  stopRefreshing()
+  disconnectSSE()
   visible.value = false
 }
 
-// 组件卸载时清理定时器
+// 组件卸载时清理
 onUnmounted(() => {
-  stopRefreshing()
+  disconnectSSE()
 })
 
 // 暴露方法给父组件
@@ -161,10 +253,18 @@ defineExpose({
   border-radius: 4px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
 .status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.connection-status {
   display: flex;
   align-items: center;
   gap: 8px;

@@ -1,41 +1,101 @@
 from fastapi import APIRouter, Depends
 from app.dependencies import success_response, error_response
-from app.dependencies.auth import verify_token
+from app.dependencies.auth import verify_token, verify_token_query
+from sse_starlette.sse import EventSourceResponse
 import subprocess
 import os
 import threading
+import asyncio
+from typing import AsyncGenerator
+from collections import defaultdict
 
 router = APIRouter()
 
 process_store = {}
 logs_store = {'process': [], 'install': []}
 
+# SSE日志流管理器
+class LogStreamManager:
+    def __init__(self):
+        self.subscribers: dict[str, dict[str, asyncio.Queue]] = defaultdict(dict)
+        self._lock = threading.Lock()
+    
+    async def subscribe(self, log_type: str) -> AsyncGenerator:
+        """订阅指定类型的日志流"""
+        queue = asyncio.Queue()
+        subscriber_id = str(id(queue))
+        
+        with self._lock:
+            self.subscribers[log_type][subscriber_id] = queue
+        
+        try:
+            # 先发送历史日志
+            for log_line in logs_store.get(log_type, []):
+                yield {"data": log_line}
+            
+            # 然后持续发送新日志
+            while True:
+                log_line = await queue.get()
+                yield {"data": log_line}
+        finally:
+            with self._lock:
+                if subscriber_id in self.subscribers[log_type]:
+                    del self.subscribers[log_type][subscriber_id]
+    
+    def broadcast(self, log_type: str, log_line: str):
+        """广播日志到所有订阅者"""
+        with self._lock:
+            for queue in self.subscribers[log_type].values():
+                try:
+                    # 使用 call_soon_threadsafe 从其他线程安全地添加到队列
+                    queue._loop.call_soon_threadsafe(queue.put_nowait, log_line)
+                except Exception:
+                    pass
+
+log_stream_manager = LogStreamManager()
+
 def add_log(log_type, line):
     logs = logs_store[log_type]
     logs.append(line)
     if len(logs) > 500:
         logs.pop(0)
+    # 广播到SSE订阅者
+    log_stream_manager.broadcast(log_type, line)
 
 def read_output(pipe, log_type):
     for line in iter(pipe.readline, ''):
         add_log(log_type, line.strip())
 
 def install_requirements_if_exists(tasks_dir):
+    """使用Popen实时捕获pip install输出"""
     req_file = os.path.join(tasks_dir, 'requirements.txt')
     if os.path.exists(req_file):
         try:
-            result = subprocess.run(['pip', 'install', '-r', 'requirements.txt'], cwd=tasks_dir, capture_output=True, text=True, check=True)
-            for line in result.stdout.splitlines():
-                add_log('install', line)
-            for line in result.stderr.splitlines():
-                add_log('install', line)
+            # 使用Popen替代run以实时捕获输出
+            process = subprocess.Popen(
+                ['pip', 'install', '-r', 'requirements.txt'],
+                cwd=tasks_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # 合并stderr到stdout
+                text=True,
+                bufsize=1  # 行缓冲
+            )
+            
+            # 实时读取输出
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    add_log('install', line.strip())
+            
+            process.wait()
+            
+            if process.returncode != 0:
+                raise Exception(f"安装依赖失败，退出码: {process.returncode}")
+            
             return True
-        except subprocess.CalledProcessError as e:
-            for line in e.stdout.splitlines():
-                add_log('install', line)
-            for line in e.stderr.splitlines():
-                add_log('install', line)
-            raise Exception(f"安装依赖失败: {e.stderr}")
+        except Exception as e:
+            error_msg = f"安装依赖失败: {str(e)}"
+            add_log('install', error_msg)
+            raise Exception(error_msg)
     return False
 
 @router.get('/system/health')
@@ -130,13 +190,27 @@ async def get_process_status():
 @router.get('/logs', dependencies=[Depends(verify_token)])
 async def get_process_logs():
     """
-    查看子进程日志接口
+    查看子进程日志接口（备用接口，保留兼容性）
     """
     return success_response(data={'logs': logs_store['process']})
 
 @router.get('/install/logs', dependencies=[Depends(verify_token)])
 async def get_install_logs():
     """
-    查看安装日志接口
+    查看安装日志接口（备用接口，保留兼容性）
     """
     return success_response(data={'logs': logs_store['install']})
+
+@router.get('/logs/stream')
+async def stream_process_logs(_: str = Depends(verify_token_query)):
+    """
+    SSE实时进程日志流
+    """
+    return EventSourceResponse(log_stream_manager.subscribe('process'))
+
+@router.get('/install/logs/stream')
+async def stream_install_logs(_: str = Depends(verify_token_query)):
+    """
+    SSE实时安装日志流
+    """
+    return EventSourceResponse(log_stream_manager.subscribe('install'))

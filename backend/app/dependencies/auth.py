@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Header
+from fastapi import HTTPException, Header, Query
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
@@ -33,6 +33,25 @@ async def verify_token(authorization: str = Header(...)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    return username
+
+async def verify_token_query(token: str = Query(...)):
+    """
+    用于SSE端点的token验证（通过查询参数）
+    因为EventSource不支持自定义请求头
+    """
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        print(f"verify_token_query username: {username}")
         if username is None:
             raise credentials_exception
     except JWTError:
