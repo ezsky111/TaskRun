@@ -1,6 +1,8 @@
 # /workspaces/TaskRun/backend/taskrunner.py
 import os
 import sys
+# Ensure stdout uses utf-8 encoding to support emojis
+sys.stdout.reconfigure(encoding='utf-8')
 from pathlib import Path
 
 # 🚀 关键：将任务目录添加到Python路径

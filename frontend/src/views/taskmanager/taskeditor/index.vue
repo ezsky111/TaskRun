@@ -713,7 +713,8 @@ const initEditor = async () => {
       'javascript',
       'typescript',
       'vue',
-      'python'
+      'python',
+      'json'
     ],
   })
   monaco.languages.register({ id: 'vue' })
