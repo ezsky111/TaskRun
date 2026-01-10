@@ -59,3 +59,15 @@ export function fetchCreateFile(params: Api.Files.CreateFileParams) {
     data: params
   })
 }
+
+/**
+ * 重命名或移动文件/目录
+ * @param params 重命名参数
+ * @returns 操作结果
+ */
+export function fetchRenameFile(params: Api.Files.RenameFileParams) {
+  return request.post<Api.Files.FileOperationData>({
+    url: '/api/files/rename',
+    data: params
+  })
+}

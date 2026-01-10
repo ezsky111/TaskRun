@@ -232,7 +232,47 @@ async def create_file_or_dir(request: CreateFileRequest):
         except Exception as create_error:
             return error_response(msg=f"创建失败: {str(create_error)}")
     
+    except Exception as e:
+        return error_response(msg=f"创建失败: {str(e)}")
+
+
+class RenameFileRequest(BaseModel):
+    old_path: str
+    new_path: str
+
+
+@router.post("/files/rename", dependencies=[Depends(verify_token)])
+async def rename_file(request: RenameFileRequest):
+    """
+    重命名或移动文件/目录
+    
+    Args:
+        request: 包含old_path和new_path的请求体
+    
+    Returns:
+        操作结果
+    """
+    try:
+        old_full_path = validate_path(request.old_path)
+        # 验证新路径，确保也在TASKS_DIR下
+        new_full_path = validate_path(request.new_path)
+        
+        if not os.path.exists(old_full_path):
+            return error_response(msg="原文件或目录不存在")
+        
+        if os.path.exists(new_full_path):
+            return error_response(msg="目标路径已存在")
+            
+        # 确保目标目录存在
+        os.makedirs(os.path.dirname(new_full_path), exist_ok=True)
+        
+        try:
+            os.rename(old_full_path, new_full_path)
+            return success_response(msg="操作成功")
+        except Exception as rename_error:
+            return error_response(msg=f"操作失败: {str(rename_error)}")
+            
     except HTTPException as e:
         raise e
     except Exception as e:
-        return error_response(msg=f"创建失败: {str(e)}")
+        return error_response(msg=f"操作失败: {str(e)}")

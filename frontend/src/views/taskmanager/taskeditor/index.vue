@@ -14,7 +14,7 @@
             <Refresh class="w-4 h-4" />
             刷新
           </el-button>
-          <el-button size="small" @click="showCreateDialog">新建</el-button>
+          <el-button size="small" @click="() => showCreateDialog('file')">新建</el-button>
           <el-button size="small" @click="saveCurrentFile" :disabled="!currentTab">保存</el-button>
           <el-button size="small" @click="refreshCurrentFile" :disabled="!currentTab">重载</el-button>
         </div>
@@ -98,12 +98,29 @@
           isDark ? 'bg-[#2d2d2d] border-[#3e3e3e] text-gray-200' : 'bg-white border-gray-200 text-gray-700'
         ]">
           <span>文件浏览</span>
-          <el-icon 
-            :class="['w-4 h-4 cursor-pointer hover:rotate-180 transition-transform duration-300', isDark ? 'text-gray-400' : 'text-gray-600']"
-            @click="loadFilesList"
-          >
-            <Refresh />
-          </el-icon>
+          <div class="flex items-center gap-1">
+            <el-icon 
+              :class="['w-4 h-4 cursor-pointer hover:text-blue-500 transition-colors', isDark ? 'text-gray-400' : 'text-gray-600']"
+              title="新建文件"
+              @click="showCreateDialog('file')"
+            >
+              <DocumentAdd />
+            </el-icon>
+            <el-icon 
+              :class="['w-4 h-4 cursor-pointer hover:text-blue-500 transition-colors', isDark ? 'text-gray-400' : 'text-gray-600']"
+              title="新建文件夹"
+              @click="showCreateDialog('directory')"
+            >
+              <FolderAdd />
+            </el-icon>
+            <el-icon 
+              :class="['w-4 h-4 cursor-pointer hover:rotate-180 transition-transform duration-300', isDark ? 'text-gray-400' : 'text-gray-600']"
+              title="刷新"
+              @click="loadFilesList"
+            >
+              <Refresh />
+            </el-icon>
+          </div>
         </div>
         <el-tree
           ref="treeRef"
@@ -115,6 +132,11 @@
           :highlight-current="true"
           @node-click="handleNodeClick"
           :expand-on-click-node="false"
+          draggable
+          :allow-drop="allowDrop"
+          :allow-drag="allowDrag"
+          @node-drop="handleNodeDrop"
+          @node-contextmenu="handleContextMenu"
           :class="[
             'flex-1 overflow-y-auto task-editor-tree'
           ]"
@@ -206,17 +228,25 @@
 
     <!-- 日志弹窗 -->
     <LogDialog v-model="logDialogVisible" :logType="logType" />
+
+    <!-- 右键菜单 -->
+    <ContextMenu
+      v-model:visible="contextMenuVisible"
+      :x="contextMenuX"
+      :y="contextMenuY"
+      :targetNode="contextMenuTarget"
+      @select="handleContextMenuSelect"
+    />
   </ElCard>
 </template>
 
 <script setup lang="ts">
 import './task-editor.css'
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-// ... rest of imports
 import { shikiToMonaco } from '@shikijs/monaco'
 import { createHighlighter } from 'shiki'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh, Close, Folder, Document } from '@element-plus/icons-vue'
+import { Refresh, Close, Folder, Document, DocumentAdd, FolderAdd } from '@element-plus/icons-vue'
 import { useSettingStore } from '@/store/modules/setting'
 import { useEditorTabStore } from '@/store/modules/editorTab'
 import {
@@ -224,10 +254,12 @@ import {
   fetchReadFile,
   fetchWriteFile,
   fetchCreateFile,
-  fetchDeleteFile
+  fetchDeleteFile,
+  fetchRenameFile
 } from '@/api/files'
 import { fetchStartProcess, fetchRestartProcess, fetchStopProcess, fetchGetProcessStatus, fetchInstallDependencies } from '@/api/system-manage'
 import LogDialog from '@/components/LogDialog.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import loader from '@monaco-editor/loader'
 
 const RefreshIcon = Refresh
@@ -277,6 +309,12 @@ const createForm = reactive({
 // 日志弹窗
 const logDialogVisible = ref(false)
 const logType = ref<'process' | 'install'>('process')
+
+// 右键菜单
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuTarget = ref<any>(null)
 
 // 计算过滤后的文件列表
 const filterFilesList = computed(() => {
@@ -549,9 +587,9 @@ const refreshCurrentFile = async () => {
 }
 
 // 显示创建对话框
-const showCreateDialog = () => {
-  createForm.name = ''
-  createForm.type = 'file'
+const showCreateDialog = (type: 'file' | 'directory' = 'file', parentPath: string = '') => {
+  createForm.name = parentPath ? `${parentPath}/` : ''
+  createForm.type = type
   createDialogVisible.value = true
 }
 
@@ -720,6 +758,97 @@ const initEditor = async () => {
     console.error('编辑器初始化失败:', error)
     ElMessage.error('编辑器初始化失败: ' + error)
     editor = null
+  }
+}
+
+// 拖拽相关逻辑
+const allowDrop = (draggingNode: any, dropNode: any, type: any) => {
+  // 只允许放入文件夹中
+  return dropNode.data.type === 'directory' && type === 'inner'
+}
+
+const allowDrag = (node: any) => {
+  return true
+}
+
+// 处理节点拖拽
+const handleNodeDrop = async (draggingNode: any, dropNode: any, dropType: any, ev: any) => {
+  const oldPath = draggingNode.data.path
+  const newParentPath = dropNode.data.path
+  const fileName = draggingNode.data.name
+  const newPath = `${newParentPath}/${fileName}`
+
+  if (oldPath === newPath) return
+
+  try {
+    await fetchRenameFile({ old_path: oldPath, new_path: newPath })
+    ElMessage.success('移动成功')
+    // 刷新父节点
+    loadFilesList() 
+  } catch (error) {
+    ElMessage.error('移动失败: ' + error)
+    // 恢复树状态（这里简化处理，直接刷新）
+    loadFilesList()
+  }
+}
+
+// 处理右键菜单
+const handleContextMenu = (event: MouseEvent, data: any, node: any, component: any) => {
+  event.preventDefault()
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuTarget.value = node
+  contextMenuVisible.value = true
+}
+
+// 处理菜单选择
+const handleContextMenuSelect = async (action: string, node: any) => {
+  const path = node.data.path
+  
+  switch (action) {
+    case 'new-file':
+      showCreateDialog('file', path)
+      break
+    case 'new-folder':
+      showCreateDialog('directory', path)
+      break
+    case 'rename':
+      ElMessageBox.prompt('请输入新名称', '重命名', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputValue: node.data.name
+      }).then(async ({ value }) => {
+        if (!value || value === node.data.name) return
+        const parentPath = path.substring(0, path.lastIndexOf('/'))
+        const newPath = parentPath ? `${parentPath}/${value}` : value
+        try {
+          await fetchRenameFile({ old_path: path, new_path: newPath })
+          ElMessage.success('重命名成功')
+          loadFilesList()
+        } catch (error) {
+          ElMessage.error('重命名失败: ' + error)
+        }
+      }).catch(() => {})
+      break
+    case 'delete':
+      ElMessageBox.confirm(`确定要删除 ${node.data.name} 吗？`, '提示', {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        try {
+          await fetchDeleteFile({ path })
+          ElMessage.success('删除成功')
+          loadFilesList()
+          // 如果打开了该文件，关闭它
+          if (editorTabStore.tabs.find(t => t.path === path)) {
+            closeTab(path)
+          }
+        } catch (error) {
+          ElMessage.error('删除失败: ' + error)
+        }
+      }).catch(() => {})
+      break
   }
 }
 

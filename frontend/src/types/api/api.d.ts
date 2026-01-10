@@ -118,7 +118,7 @@ declare namespace Api {
     /** 用户搜索参数 */
     type UserSearchParams = Partial<
       Pick<UserListItem, 'id' | 'username' | 'userGender' | 'userPhone' | 'userEmail' | 'status'> &
-        Api.Common.CommonSearchParams
+      Api.Common.CommonSearchParams
     >
 
     /** 角色列表 */
@@ -137,7 +137,7 @@ declare namespace Api {
     /** 角色搜索参数 */
     type RoleSearchParams = Partial<
       Pick<RoleListItem, 'roleId' | 'roleName' | 'roleCode' | 'description' | 'enabled'> &
-        Api.Common.CommonSearchParams
+      Api.Common.CommonSearchParams
     >
 
     /** 子进程状态数据 */
@@ -202,7 +202,7 @@ declare namespace Api {
     }
 
     /** Funboost 结果分页响应 */
-    type FunboostResultsData =Api.Common.PaginatedResponse<FunboostResultItem>
+    type FunboostResultsData = Api.Common.PaginatedResponse<FunboostResultItem>
 
     /** Funboost 结果查询参数 */
     interface FunboostResultsParams {
@@ -354,6 +354,18 @@ declare namespace Api {
     interface CreateFileParams {
       path: string
       is_dir: boolean
+    }
+
+    /** 重命名文件参数 */
+    interface RenameFileParams {
+      old_path: string
+      new_path: string
+    }
+
+    /** 重命名文件参数 */
+    interface RenameFileParams {
+      old_path: string
+      new_path: string
     }
 
     /** 文件操作响应数据 */
