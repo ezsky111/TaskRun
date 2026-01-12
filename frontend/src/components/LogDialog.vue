@@ -14,6 +14,15 @@
           {{ connectionStatusText }}
         </el-tag>
       </div>
+      <div class="filter-section">
+        <el-input
+          v-model="filterKeyword"
+          placeholder="筛选日志（支持正则表达式）"
+          clearable
+          style="width: 300px"
+        />
+        <span class="filter-count">{{ filteredLogs.length }} / {{ logs.length }}</span>
+      </div>
     </div>
     <div class="log-container" ref="logContainerRef" @scroll="handleScroll">
       <!-- 使用 v-html 渲染解析后的HTML -->
@@ -31,6 +40,7 @@ import { ref, computed, nextTick, watch, onUnmounted } from 'vue'
 import { fetchGetProcessStatus } from '@/api/system-manage'
 import { AnsiUp } from 'ansi_up'
 import { useUserStore } from '@/store/modules/user'
+import { debounce } from '@/utils/index'
 
 interface Props {
   modelValue: boolean
@@ -53,9 +63,38 @@ const processStatus = ref<Api.SystemManage.ProcessStatusData>({ status: 'stopped
 const eventSource = ref<EventSource | null>(null)
 const connectionStatus = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
 const autoScroll = ref(true)
+const filterKeyword = ref('')
+const pendingLogs = ref<string[]>([]) // 待处理的日志缓冲区
+const isProcessingLogs = ref(false) // 是否正在处理日志
 
 // 创建 ansi_up 实例
 const ansiUp = new AnsiUp()
+
+// 每次处理的日志行数（增大以加快显示）
+const BATCH_SIZE = 200
+// 最多保留的日志行数
+const MAX_LOG_LINES = 5000
+// 处理日志的时间间隔（毫秒）（减少以更频繁处理）
+const PROCESS_INTERVAL = 50
+// 用于缓存formattedLogs的最后一次过滤结果
+const cachedFilteredLogsLength = ref(0)
+const shouldUpdateContent = ref(true)
+
+// 过滤日志（防抖处理）
+const filteredLogs = computed(() => {
+  if (!filterKeyword.value) {
+    return logs.value
+  }
+  
+  try {
+    // 尝试作为正则表达式处理
+    const regex = new RegExp(filterKeyword.value, 'i')
+    return logs.value.filter(log => regex.test(log))
+  } catch {
+    // 如果正则表达式无效，则作为普通字符串进行模糊匹配
+    return logs.value.filter(log => log.toLowerCase().includes(filterKeyword.value.toLowerCase()))
+  }
+})
 
 // 连接状态显示
 const connectionStatusType = computed(() => {
@@ -82,8 +121,15 @@ const connectionStatusText = computed(() => {
 
 // 计算属性：将日志数组转换为带颜色的HTML
 const formattedLogs = computed(() => {
+  if (!shouldUpdateContent.value && cachedFilteredLogsLength.value === filteredLogs.value.length) {
+    return ''
+  }
+  
+  cachedFilteredLogsLength.value = filteredLogs.value.length
+  shouldUpdateContent.value = false
+  
   // 限制显示最新的1000行以优化性能
-  const recentLogs = logs.value.slice(-1000)
+  const recentLogs = filteredLogs.value.slice(-1000)
   
   // 将每行日志通过 ansi_up 转换为HTML
   const htmlLogs = recentLogs.map(log => {
@@ -92,9 +138,15 @@ const formattedLogs = computed(() => {
   
   // 每行用div包裹，并添加行号
   return htmlLogs.map((html, index) => {
-    const lineNumber = index + 1 + Math.max(0, logs.value.length - 1000)
+    const lineNumber = index + 1 + Math.max(0, filteredLogs.value.length - 1000)
     return `<div class="log-line"><span class="line-number">${lineNumber}:</span>${html}</div>`
   }).join('')
+})
+
+// 监听过滤关键词变化（设置标志以进行重新渲染）
+watch(filterKeyword, () => {
+  shouldUpdateContent.value = true
+  debouncedScrollToBottom()
 })
 
 // 监听外部visible变化
@@ -109,6 +161,7 @@ watch(() => props.modelValue, (newVal) => {
   } else {
     disconnectSSE()
     logs.value = []
+    pendingLogs.value = []
   }
 })
 
@@ -117,12 +170,20 @@ watch(visible, (newVal) => {
   emit('update:modelValue', newVal)
 })
 
-// 监听日志变化，自动滚动
+// 监听日志变化，自动滚动（设置标志以进行重新渲染）
 watch(() => logs.value.length, () => {
+  shouldUpdateContent.value = true
   if (autoScroll.value) {
     scrollToBottom()
   }
 })
+
+// 防抖滚动（防止频繁滚动）
+const debouncedScrollToBottom = debounce(() => {
+  if (autoScroll.value) {
+    scrollToBottom()
+  }
+}, 200)
 
 // 连接SSE
 const connectSSE = () => {
@@ -145,16 +206,13 @@ const connectSSE = () => {
     eventSource.value.onopen = () => {
       connectionStatus.value = 'connected'
       console.log('SSE连接已建立')
+      startProcessingLogs()
     }
     
     eventSource.value.onmessage = (event) => {
       const logLine = event.data
-      logs.value.push(logLine)
-      
-      // 限制内存中的日志行数
-      if (logs.value.length > 2000) {
-        logs.value = logs.value.slice(-1000)
-      }
+      // 将日志放入缓冲区而不是直接添加
+      pendingLogs.value.push(logLine)
     }
     
     eventSource.value.onerror = (error) => {
@@ -178,8 +236,50 @@ const connectSSE = () => {
   }
 }
 
+// 启动日志处理定时器
+let processLogsTimer: ReturnType<typeof setInterval> | null = null
+const startProcessingLogs = () => {
+  if (processLogsTimer) return
+  
+  processLogsTimer = setInterval(() => {
+    if (pendingLogs.value.length > 0) {
+      processNextBatch()
+    }
+  }, PROCESS_INTERVAL)
+}
+
+// 停止日志处理定时器
+const stopProcessingLogs = () => {
+  if (processLogsTimer) {
+    clearInterval(processLogsTimer)
+    processLogsTimer = null
+  }
+}
+
+// 处理下一批日志
+const processNextBatch = () => {
+  if (isProcessingLogs.value || pendingLogs.value.length === 0) {
+    return
+  }
+  
+  isProcessingLogs.value = true
+  
+  requestAnimationFrame(() => {
+    const batch = pendingLogs.value.splice(0, BATCH_SIZE)
+    logs.value.push(...batch)
+    
+    // 限制内存中的日志行数，更激进的清理策略
+    if (logs.value.length > MAX_LOG_LINES) {
+      logs.value = logs.value.slice(-Math.ceil(MAX_LOG_LINES * 0.8))
+    }
+    
+    isProcessingLogs.value = false
+  })
+}
+
 // 断开SSE连接
 const disconnectSSE = () => {
+  stopProcessingLogs()
   if (eventSource.value) {
     eventSource.value.close()
     eventSource.value = null
@@ -222,17 +322,22 @@ const handleScroll = () => {
 // 清空日志
 const clearLogs = () => {
   logs.value = []
+  pendingLogs.value = []
 }
 
 // 关闭处理
 const handleClose = () => {
   disconnectSSE()
   visible.value = false
+  // 清理缓冲区
+  pendingLogs.value = []
 }
 
 // 组件卸载时清理
 onUnmounted(() => {
   disconnectSSE()
+  stopProcessingLogs()
+  pendingLogs.value = []
 })
 
 // 暴露方法给父组件
@@ -242,6 +347,9 @@ defineExpose({
   },
   close: () => {
     handleClose()
+  },
+  setFilterKeyword: (keyword: string) => {
+    filterKeyword.value = keyword
   }
 })
 </script>
@@ -256,6 +364,7 @@ defineExpose({
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .status-info {
@@ -270,6 +379,20 @@ defineExpose({
   align-items: center;
   gap: 8px;
   font-size: 14px;
+}
+
+.filter-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.filter-count {
+  font-size: 12px;
+  color: #666;
+  min-width: 80px;
+  text-align: center;
 }
 
 .log-container {

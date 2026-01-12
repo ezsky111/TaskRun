@@ -38,7 +38,10 @@
           <div class="text-sm text-gray-600 mb-1"><strong>运行次数:</strong> {{ item.run_times }}</div>
           <div class="text-sm text-gray-600 mb-1"><strong>插入时间:</strong> {{ formatDateTime(item.insert_time) }}</div>
           <div class="text-sm text-gray-600 mb-2"><strong>参数:</strong> <span class="truncate block">{{ item.params_str }}</span></div>
-          <ElButton size="small" @click="showDetail(item)">详情</ElButton>
+          <div>
+            <ElButton size="small" @click="showDetail(item)">详情</ElButton>
+            <ElButton size="small" @click="showLogs(item.task_id)">日志</ElButton>
+          </div>
         </ElCard>
       </div>
 
@@ -57,22 +60,24 @@
     </ElCard>
 
     <!-- 详情弹窗 -->
-    <ElDialog v-model="detailDialogVisible" title="任务详情" :width="isMobile ? '90%' : '50%'" class="rounded-lg shadow-lg">
+    <ElDialog v-model="detailDialogVisible" title="任务详情" :width="isMobile ? '90%' : '80%'" class="rounded-lg shadow-lg">
       <div v-if="detailData" class="p-4">
-        <div class="flex flex-col lg:flex-row justify-between gap-4">
-          <div class="w-full lg:w-1/2 bg-gray-100 p-4 rounded-lg">
+        <div class="flex flex-col gap-4">
+          <div class="bg-gray-100 p-4 rounded-lg">
             <h3 class="text-lg font-semibold mb-2">参数</h3>
-            <pre class="text-sm overflow-auto" v-html="highlightJson(formatJson(detailData.params))"></pre>
+            <pre class="text-sm overflow-auto max-h-60 whitespace-pre-wrap word-break" v-html="highlightJson(formatJson(detailData.params))"></pre>
           </div>
-          <div v-if="detailData.success" class="w-full lg:w-1/2 bg-gray-100 p-4 rounded-lg">
+          <div v-if="detailData.success" class="bg-gray-100 p-4 rounded-lg">
             <h3 class="text-lg font-semibold mb-2">结果</h3>
-            <pre class="text-sm overflow-auto" v-html="highlightJson(formatJson(detailData.result))"></pre>
+            <pre class="text-sm overflow-auto max-h-60 whitespace-pre-wrap word-break" v-html="highlightJson(formatJson(detailData.result))"></pre>
           </div>
-          <div v-else class="w-full lg:w-1/2 bg-gray-100 p-4 rounded-lg">
+          <div v-else class="bg-gray-100 p-4 rounded-lg">
             <h3 class="text-lg font-semibold mb-2">异常信息</h3>
-            <pre class="text-sm">异常类型: {{ detailData.exception_type }}</pre>
-            <pre class="text-sm">异常信息: {{ detailData.exception_msg }}</pre>
-            <pre class="text-sm">完整信息: {{ detailData.exception }}</pre>
+            <pre class="text-sm overflow-auto max-h-60 whitespace-pre-wrap word-break">异常类型: {{ detailData.exception_type }}
+
+异常信息: {{ detailData.exception_msg }}
+
+完整信息: {{ detailData.exception }}</pre>
           </div>
         </div>
       </div>
@@ -84,6 +89,9 @@
       @published="handleTaskPublished"
       @view-result="handleViewResult"
     />
+
+    <!-- 日志弹窗 -->
+    <LogDialog ref="logDialogRef" v-model="logDialogVisible" log-type="process" />
   </div>
 </template>
 
@@ -92,6 +100,7 @@ import { useTable } from '@/hooks/core/useTable'
 import { fetchGetFunboostResults } from '@/api/funboost'
 import QueryTaskSearch from './modules/querytask-search.vue'
 import PublishTaskDialog from './modules/create-task.vue'
+import LogDialog from '@/components/LogDialog.vue'
 import { ElTag, ElDialog, ElButton, ElPagination, ElIcon } from 'element-plus'
 import { ref, h, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
@@ -133,6 +142,10 @@ const searchForm = ref({
 
 // 发布任务弹窗
 const publishDialogVisible = ref(false)
+
+// 日志弹窗相关
+const logDialogVisible = ref(false)
+const logDialogRef = ref()
 
 // 成功状态配置
 const SUCCESS_STATUS_CONFIG = {
@@ -189,10 +202,19 @@ const {
       },
       { prop: 'insert_time', label: '插入时间', width: 180, formatter: (row: FunboostResultItem) => formatDateTime(row.insert_time) },
       {
-        label: '操作', width: 120, fixed: 'right', formatter: (row: FunboostResultItem) => {
-          return h(ElButton, {
-            onClick: () => showDetail(row)
-          }, '详情')
+        label: '操作', width: 140, fixed: 'right', formatter: (row: FunboostResultItem) => {
+          return h('div', [
+            h(ElButton, {
+              onClick: () => showDetail(row),
+              size: 'small',
+              text: true
+            }, '详情'),
+            h(ElButton, {
+              onClick: () => showLogs(row.task_id),
+              size: 'small',
+              text: true
+            }, '日志')
+          ])
         }
       }
     ]
@@ -212,6 +234,14 @@ const detailData = ref<FunboostResultItem | null>(null)
 const showDetail = (row: FunboostResultItem) => {
   detailData.value = row
   detailDialogVisible.value = true
+}
+
+const showLogs = (taskId: string) => {
+  console.log(taskId)
+  if (logDialogRef.value) {
+    logDialogRef.value.setFilterKeyword(taskId)
+    logDialogRef.value.open()
+  }
 }
 
 // 发布任务相关方法
@@ -289,5 +319,11 @@ const formatDateTime = (dateTime: string) => {
 
 .el-dialog__body {
   padding: 20px;
+}
+
+.word-break {
+  word-wrap: break-word;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 </style>

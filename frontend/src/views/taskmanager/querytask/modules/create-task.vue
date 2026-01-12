@@ -186,23 +186,35 @@
       <template #footer>
         <div class="flex justify-between">
           <ElButton @click="resultDialogVisible = false">关闭</ElButton>
-          <ElButton
-            v-if="publishResult && publishResult.task_id"
-            type="primary"
-            @click="handleViewResult"
-          >
-            查看结果
-          </ElButton>
+          <div class="flex space-x-2">
+            <ElButton
+              v-if="publishResult && publishResult.task_id"
+              @click="handleViewLogs"
+            >
+              查看相关日志
+            </ElButton>
+            <ElButton
+              v-if="publishResult && publishResult.task_id"
+              type="primary"
+              @click="handleViewResult"
+            >
+              查看结果
+            </ElButton>
+          </div>
         </div>
       </template>
     </ElDialog>
   </ElDialog>
+
+  <!-- 日志对话框 -->
+  <LogDialog ref="logDialogRef" v-model="logDialogVisible" log-type="process" />
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchGetQueuesConfig, fetchPublishMsg } from '@/api/funboost'
+import LogDialog from '@/components/LogDialog.vue'
 
 // Props
 interface Props {
@@ -248,6 +260,8 @@ const timeout = ref(60)
 const resultDialogVisible = ref(false)
 const publishResult = ref<any>(null)
 const jsonFormRef = ref()
+const logDialogRef = ref()
+const logDialogVisible = ref(false)
 
 // 计算属性
 const visible = computed({
@@ -398,6 +412,16 @@ const handleViewResult = () => {
     emit('view-result', publishResult.value.task_id)
     resultDialogVisible.value = false
     visible.value = false
+  }
+}
+
+const handleViewLogs = () => {
+  if (publishResult.value && publishResult.value.task_id && logDialogRef.value) {
+    // 设置过滤关键词并打开日志对话框
+    logDialogRef.value.setFilterKeyword(publishResult.value.task_id)
+    logDialogRef.value.open()
+    // 自动关闭发布结果对话框，只显示日志
+    resultDialogVisible.value = false
   }
 }
 
